@@ -3,6 +3,8 @@ from __future__ import annotations
 from datetime import date
 from typing import Optional
 from pydantic import BaseModel, field_validator, ConfigDict
+import json
+import ast
 
 
 class OrderRow(BaseModel):
@@ -44,8 +46,7 @@ class CustomerRow(BaseModel):
     first_name: str
     last_name: str
     email: str
-    city: str
-    country: str
+    address: str
     signup_date: date
     tier: Optional[str] = "standard"
 
@@ -55,6 +56,16 @@ class CustomerRow(BaseModel):
         if "@" not in v:
             raise ValueError(f"invalid email: {v}")
         return v.lower()
+    
+    @field_validator("address")
+    @classmethod
+    def address_format(cls, v: str) -> str:
+        nest = ast.literal_eval(v)
+        if not nest["city"]:
+            raise ValueError(f"no city founds")
+        if not nest["country"]:
+            raise ValueError(f"no country found")
+        return v
 
 
 class ProductRow(BaseModel):
