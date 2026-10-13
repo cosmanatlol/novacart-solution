@@ -36,10 +36,10 @@ def ingest_orders(
         raise IngestionError(f"orders file not found: {src}")
     try:
         df = pd.read_csv(src, encoding = 'utf-8', dtype=str)
-    except Exception as UnicodeDecodeError:
+    except Exception as UnicodeDecodeError :
         df = pd.read_csv(src, encoding = 'latin-1', dtype=str)
 
-    df = pd.read_csv(src)
+
     log_event(logger, "INFO", "orders_ingested", date=date_str, rows=len(df))
 
     check_schema(list(df.columns), EXPECTED_COLUMNS, "orders", logger)
