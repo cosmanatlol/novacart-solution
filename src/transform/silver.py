@@ -25,18 +25,22 @@ def _validate_df(
     good, bad = [], []
     for _, row in df.iterrows():
         try:
-            model(**row.to_dict())
-            good.append(row)
-        except (ValidationError, Exception) as exc:
+            validated = model.model_validate(row.to_dict())
+            cleaned = row.to_dict()
+            cleaned.update(validated.model_dump(mode="json"))
+            good.append(cleaned)
+        except ValidationError as exc:
             row_dict = row.to_dict()
-            row_dict["_quarantine_reason"] = str(exc)
+            row_dict["_error_reason"] = str(exc)
             row_dict["_quarantined_at"] = datetime.now(timezone.utc).isoformat()
             bad.append(row_dict)
 
     if bad:
         q_dir = quarantine_path / source_name
         q_dir.mkdir(parents=True, exist_ok=True)
-        ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
+        ts = datetime.now(timezone.utc).strftime(
+            "%Y%m%dT%H%M%S%f"
+        )
         pd.DataFrame(bad).to_parquet(q_dir / f"{ts}.parquet", index=False)
         log_event(logger, "WARNING", f"{source_name}_quarantined", count=len(bad))
 
@@ -45,7 +49,10 @@ def _validate_df(
     # Deduplicate on primary key — keep last occurrence
     if primary_key in result.columns and not result.empty:
         before = len(result)
-        result = result.drop_duplicates(subset=[primary_key], keep="last")
+        result = (
+            result.sort_values("_ingested_at", kind="stable")
+            .drop_duplicates(subset=[primary_key], keep="last")
+        )
         dupes = before - len(result)
         if dupes:
             log_event(logger, "INFO", f"{source_name}_deduped", dropped=dupes)
