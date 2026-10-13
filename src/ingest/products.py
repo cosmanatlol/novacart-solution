@@ -13,16 +13,14 @@ from src.utils.exceptions import IngestionError
 from src.utils.logging_setup import log_event
 from src.utils.state import StateManager
 from src.transform.schema_check import check_schema
+from src.utils.schemas import SOURCE_SCHEMAS
 
-EXPECTED_COLUMNS = [
-    "product_id", "name", "category", "unit_cost", "supplier_id", "updated_at",
-]
 WATERMARK_KEY = "products_updated_at"
 
 def _row_hash(row: pd.Series) -> str:
     """SHA-256 of the source business columns (stable across key order and nested values)."""
     payload = json.dumps(
-        [row[c] for c in EXPECTED_COLUMNS], sort_keys=True, default=str, separators=(",", ":")
+        [row[c] for c in SOURCE_SCHEMAS["products"]["model"].model_fields if c in row.index], sort_keys=True, default=str, separators=(",", ":")
     )
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
@@ -60,7 +58,7 @@ def ingest_products(
         out_dir.mkdir(parents=True, exist_ok=True)
         return out_dir / "data.parquet"
 
-    check_schema(list(df.columns), EXPECTED_COLUMNS, "products", logger)
+    check_schema(list(df.columns), SOURCE_SCHEMAS["products"]["model"], "products", logger)
 
     df["_row_hash"] = df.apply(_row_hash, axis=1)
     df["_ingested_at"] = datetime.now(timezone.utc).isoformat()

@@ -11,18 +11,16 @@ import pandas as pd
 from src.utils.exceptions import IngestionError
 from src.utils.logging_setup import log_event
 from src.transform.schema_check import check_schema
+from src.utils.schemas import SOURCE_SCHEMAS
 
-EXPECTED_COLUMNS = [
-    "order_id", "customer_id", "product_id",
-    "order_date", "quantity", "unit_price", "status",
-]
 
 def _row_hash(row: pd.Series) -> str:
     """SHA-256 of the source business columns (stable across key order and nested values)."""
     payload = json.dumps(
-        [row[c] for c in EXPECTED_COLUMNS], sort_keys=True, default=str, separators=(",", ":")
+        [row[c] for c in SOURCE_SCHEMAS["orders"]["model"].model_fields if c in row.index], sort_keys=True, default=str, separators=(",", ":")
     )
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
 
 def ingest_orders(
     date_str: str,
@@ -42,7 +40,7 @@ def ingest_orders(
 
     log_event(logger, "INFO", "orders_ingested", date=date_str, rows=len(df))
 
-    check_schema(list(df.columns), EXPECTED_COLUMNS, "orders", logger)
+    check_schema(list(df.columns), SOURCE_SCHEMAS["orders"]["model"], "orders", logger)
 
     # Add Bronze metadata
     df["_row_hash"] = df.apply(_row_hash, axis=1)

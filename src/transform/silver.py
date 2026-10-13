@@ -75,6 +75,9 @@ def build_silver_orders(
     df = pd.read_parquet(src)
     df = _validate_df(df, OrderRow, "order_id", quarantine_dir, logger, "orders")
 
+    df["quantity"] = df["quantity"].astype(int)
+    df["unit_price"] = df["unit_price"].astype(float)
+
     out_dir = silver_dir / "orders" / f"date={date_str}"
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / "data.parquet"
@@ -96,7 +99,7 @@ def build_silver_customers(
 
     df = pd.read_parquet(src)
     df = _validate_df(df, CustomerRow, "customer_id", quarantine_dir, logger, "customers")
-    df['address'] = df['address'].apply(ast.literal_eval)
+    # df['address'] = df['address'].apply(ast.literal_eval) <- dropped due to change in address format str->json
     df = df.drop(columns=['address']).join(df['address'].apply(pd.Series))
     out_dir = silver_dir / "customers"
     out_dir.mkdir(parents=True, exist_ok=True)

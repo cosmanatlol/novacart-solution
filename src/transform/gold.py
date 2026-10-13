@@ -139,7 +139,7 @@ def build_fact_orders(
 
     # Derived metrics
     df["order_date"] = pd.to_datetime(df["order_date"])
-    df["total_amount"] = df["quantity"] * df["unit_price"]
+    df["total_amount"] = df["quantity"].astype(int) * df["unit_price"].astype(float)
 
     # Idempotent: full replace of this date partition
     df.to_parquet(out_path, index=False)

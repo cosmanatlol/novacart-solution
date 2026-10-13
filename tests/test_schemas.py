@@ -42,7 +42,7 @@ class TestOrderRow:
 class TestCustomerRow:
     def _valid(self, **overrides):
         base = dict(customer_id="C1", first_name="Alice", last_name="Smith",
-                    email="alice@example.com", address="{'city': 'New York', 'country': 'US'}",
+                    email="alice@example.com", address={"city": "New York", "country": "US"},
                     signup_date=date(2024, 1, 1), tier="gold")
         base.update(overrides)
         return base

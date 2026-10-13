@@ -1,3 +1,10 @@
+"""
+To run this script:
+- Copy the relative file path of the .parquet file (PARQUET_FILE_PATH)
+- Run the following command in the terminal (replace PARQUET_FILE_PATH with the copied path):
+    python3 scripts/view_parquet.py PARQUET_FILE_PATH
+"""
+
 from pathlib import Path
 import sys
 
