@@ -4,6 +4,7 @@ import logging
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Type
+import ast 
 
 import pandas as pd
 from pydantic import BaseModel, ValidationError
@@ -88,7 +89,8 @@ def build_silver_customers(
 
     df = pd.read_parquet(src)
     df = _validate_df(df, CustomerRow, "customer_id", quarantine_dir, logger, "customers")
-
+    df['address'] = df['address'].apply(ast.literal_eval)
+    df = df.drop(columns=['address']).join(df['address'].apply(pd.Series))
     out_dir = silver_dir / "customers"
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / "data.parquet"
