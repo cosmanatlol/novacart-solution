@@ -42,7 +42,7 @@ class TestOrderRow:
 class TestCustomerRow:
     def _valid(self, **overrides):
         base = dict(customer_id="C1", first_name="Alice", last_name="Smith",
-                    email="alice@example.com", city="NYC", country="US",
+                    email="alice@example.com", address="{'city': 'New York', 'country': 'US'}",
                     signup_date=date(2024, 1, 1), tier="gold")
         base.update(overrides)
         return base
@@ -53,6 +53,7 @@ class TestCustomerRow:
 
     def test_email_normalised_to_lowercase(self):
         row = CustomerRow(**self._valid(email="Alice@Example.COM"))
+        print(row.email)
         assert row.email == "alice@example.com"
 
     def test_bad_email_rejected(self):
