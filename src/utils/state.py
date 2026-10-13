@@ -10,7 +10,7 @@ class StateManager:
         self._dir = state_dir
         self._dir.mkdir(parents=True, exist_ok=True)
         self._watermark_file = self._dir / "watermarks.json"
-        self._runs_file = self._dir / "run_history.jsonl"
+        self._runs_file = self._dir / "runs.jsonl"
 
     # ── watermarks ──────────────────────────────────────────────────────────
     def get_watermark(self, source: str) -> str | None:
