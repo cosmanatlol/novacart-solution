@@ -2,6 +2,8 @@
 from __future__ import annotations
 import logging
 import sqlite3
+import json
+import hashlib
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -17,6 +19,12 @@ EXPECTED_COLUMNS = [
 ]
 WATERMARK_KEY = "products_updated_at"
 
+def _row_hash(row: pd.Series) -> str:
+    """SHA-256 of the source business columns (stable across key order and nested values)."""
+    payload = json.dumps(
+        [row[c] for c in EXPECTED_COLUMNS], sort_keys=True, default=str, separators=(",", ":")
+    )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 def ingest_products(
     db_path: Path,
@@ -54,7 +62,10 @@ def ingest_products(
 
     check_schema(list(df.columns), EXPECTED_COLUMNS, "products", logger)
 
+    df["_row_hash"] = df.apply(_row_hash, axis=1)
     df["_ingested_at"] = datetime.now(timezone.utc).isoformat()
+    df["_source_file"] = db_path.name
+
 
     out_dir = bronze_dir / "products"
     out_dir.mkdir(parents=True, exist_ok=True)

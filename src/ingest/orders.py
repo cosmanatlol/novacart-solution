@@ -1,6 +1,8 @@
 """Ingest daily orders CSV → Bronze parquet."""
 from __future__ import annotations
 import logging
+import json
+import hashlib
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -15,6 +17,12 @@ EXPECTED_COLUMNS = [
     "order_date", "quantity", "unit_price", "status",
 ]
 
+def _row_hash(row: pd.Series) -> str:
+    """SHA-256 of the source business columns (stable across key order and nested values)."""
+    payload = json.dumps(
+        [row[c] for c in EXPECTED_COLUMNS], sort_keys=True, default=str, separators=(",", ":")
+    )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 def ingest_orders(
     date_str: str,
@@ -26,6 +34,10 @@ def ingest_orders(
     src = landing_dir / f"orders_{date_str}.csv"
     if not src.exists():
         raise IngestionError(f"orders file not found: {src}")
+    try:
+        df = pd.read_csv(src, encoding = 'utf-8', dtype=str)
+    except Exception as UnicodeDecodeError:
+        df = pd.read_csv(src, encoding = 'latin-1', dtype=str)
 
     df = pd.read_csv(src)
     log_event(logger, "INFO", "orders_ingested", date=date_str, rows=len(df))
@@ -33,6 +45,7 @@ def ingest_orders(
     check_schema(list(df.columns), EXPECTED_COLUMNS, "orders", logger)
 
     # Add Bronze metadata
+    df["_row_hash"] = df.apply(_row_hash, axis=1)
     df["_source_file"] = src.name
     df["_ingested_at"] = datetime.now(timezone.utc).isoformat()
     df["_partition_date"] = date_str
