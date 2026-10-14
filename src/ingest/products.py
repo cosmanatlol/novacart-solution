@@ -40,25 +40,34 @@ def ingest_products(
     watermark = state.get_watermark(WATERMARK_KEY) or "1970-01-01T00:00:00"
     log_event(logger, "INFO", "products_watermark_read", watermark=watermark)
 
-    conn = sqlite3.connect(db_path)
     try:
-        df = pd.read_sql_query(
-            "SELECT * FROM products WHERE updated_at > ? ORDER BY updated_at",
-            conn,
-            params=(watermark,),
-        )
-    finally:
-        conn.close()
+        conn = sqlite3.connect(db_path)
+        try:
+            df = pd.read_sql_query(
+                "SELECT * FROM products WHERE updated_at > ? ORDER BY updated_at",
+                conn,
+                params=(watermark,),
+            )
+        finally:
+            conn.close()
+    except (sqlite3.Error, pd.errors.DatabaseError) as exc:
+        # pandas wraps sqlite3 errors in DatabaseError (the original is chained as __cause__).
+        raise IngestionError(f"cannot read products from {db_path}: {exc}") from exc
+
+    # Bronze stores everything as strings; nulls stay missing (<NA>), never the text "nan".
+    df = df.astype("string")
+
+    # Schema check runs even when the delta is empty, so subtractive drift is never missed.
+    check_schema(list(df.columns), SOURCE_SCHEMAS["products"]["model"], "products", logger)
 
     log_event(logger, "INFO", "products_ingested", rows=len(df), since=watermark)
 
     if df.empty:
+        # Do not touch existing Bronze data: nothing is written, deleted or overwritten.
         log_event(logger, "INFO", "products_no_new_rows")
         out_dir = bronze_dir / "products"
         out_dir.mkdir(parents=True, exist_ok=True)
         return out_dir / "data.parquet"
-
-    check_schema(list(df.columns), SOURCE_SCHEMAS["products"]["model"], "products", logger)
 
     df["_row_hash"] = df.apply(_row_hash, axis=1)
     df["_ingested_at"] = datetime.now(timezone.utc).isoformat()
