@@ -78,6 +78,7 @@ def build_dim_product(
     silver_dir: Path,
     gold_dir: Path,
     logger: logging.Logger,
+    primary_key: str = "product_id",
 ) -> Path:
     src = silver_dir / "products" / "data.parquet"
     gold_dir.mkdir(parents=True, exist_ok=True)
@@ -92,19 +93,19 @@ def build_dim_product(
         return out_path
 
     incoming = _strip_internal(incoming)
-    incoming = incoming.drop_duplicates(subset=["product_id"], keep="last")
+    incoming = incoming.drop_duplicates(subset=[primary_key], keep="last")
 
     # Products load incrementally, so Silver only holds changed rows.
-    # SCD1 = upsert: new version replaces the old one on the same product_id,
+    # SCD1 = upsert: new version replaces the old one on the same primary key,
     # every other product already in Gold is kept.
     if out_path.exists():
         existing = pd.read_parquet(out_path)
         merged = pd.concat([existing, incoming], ignore_index=True)
-        merged = merged.drop_duplicates(subset=["product_id"], keep="last")
+        merged = merged.drop_duplicates(subset=[primary_key], keep="last")
     else:
         merged = incoming
 
-    merged = merged.sort_values("product_id", kind="stable").reset_index(drop=True)
+    merged = merged.sort_values(primary_key, kind="stable").reset_index(drop=True)
     merged.to_parquet(out_path, index=False)
     log_event(logger, "INFO", "dim_product_written",
               rows=len(merged), incoming=len(incoming))
@@ -119,6 +120,7 @@ def build_dim_customer(
     scd2_fields: list[str] | None,
     logger: logging.Logger,
     as_of: str | None = None,
+    primary_key: str = "customer_id",
 ) -> Path:
     src = silver_dir / "customers" / "data.parquet"
     gold_dir.mkdir(parents=True, exist_ok=True)
@@ -132,7 +134,7 @@ def build_dim_customer(
     if incoming.empty:
         log_event(logger, "INFO", "dim_customer_skipped_no_data")
         return out_path
-    incoming = incoming.drop_duplicates(subset=["customer_id"], keep="last")
+    incoming = incoming.drop_duplicates(subset=[primary_key], keep="last")
 
     fields = [f for f in (scd2_fields or DEFAULT_SCD2_FIELDS) if f in incoming.columns]
     eff = _as_of(as_of)
@@ -152,40 +154,40 @@ def build_dim_customer(
         return out_path
 
     existing = pd.read_parquet(out_path)
-    current = existing[existing["_current"]].set_index("customer_id")["_row_hash"]
+    current = existing[existing["_current"]].set_index(primary_key)["_row_hash"]
 
-    cur_hash = incoming["customer_id"].map(current)          # NaN when customer is new
+    cur_hash = incoming[primary_key].map(current)          # NaN when customer is new
     is_new = cur_hash.isna()
     is_changed = ~is_new & (cur_hash != incoming["_row_hash"])
     is_same = ~is_new & ~is_changed
 
-    changed_ids = incoming.loc[is_changed, "customer_id"]
+    changed_ids = incoming.loc[is_changed, primary_key]
     to_insert = _open(incoming[is_new | is_changed])
 
     is_cur = existing["_current"]
     # A tracked field changed again on the SAME effective date (e.g. a corrected
     # re-run): replace that row instead of leaving a zero-length history row.
-    same_day = is_cur & existing["customer_id"].isin(changed_ids) & (existing["_eff_start"] == eff)
+    same_day = is_cur & existing[primary_key].isin(changed_ids) & (existing["_eff_start"] == eff)
     existing = existing[~same_day].copy()
     is_cur = existing["_current"]
 
     # Normal SCD2: close the old current row for every changed customer.
-    close_mask = is_cur & existing["customer_id"].isin(changed_ids)
+    close_mask = is_cur & existing[primary_key].isin(changed_ids)
     existing.loc[close_mask, "_eff_end"] = eff
     existing.loc[close_mask, "_current"] = False
 
     # Untracked attributes (e.g. signup_date) of unchanged customers: refresh the
     # current row in place so it never goes stale (history is only for tracked fields).
     untracked = [c for c in incoming.columns
-                 if c not in fields and c not in ("customer_id", "_row_hash") and c in existing.columns]
+                 if c not in fields and c not in (primary_key, "_row_hash") and c in existing.columns]
     if untracked:
-        keep = existing["_current"] & existing["customer_id"].isin(incoming.loc[is_same, "customer_id"])
-        latest = incoming.set_index("customer_id")
+        keep = existing["_current"] & existing[primary_key].isin(incoming.loc[is_same, primary_key])
+        latest = incoming.set_index(primary_key)
         for c in untracked:
-            existing.loc[keep, c] = existing.loc[keep, "customer_id"].map(latest[c])
+            existing.loc[keep, c] = existing.loc[keep, primary_key].map(latest[c])
 
     result = pd.concat([existing, to_insert], ignore_index=True)
-    result = result.sort_values(["customer_id", "_eff_start"], kind="stable").reset_index(drop=True)
+    result = result.sort_values([primary_key, "_eff_start"], kind="stable").reset_index(drop=True)
     result.to_parquet(out_path, index=False)
     log_event(logger, "INFO", "dim_customer_written", rows=len(result),
               new=int(is_new.sum()), changed=int(is_changed.sum()))
@@ -199,6 +201,7 @@ def build_fact_orders(
     silver_dir: Path,
     gold_dir: Path,
     logger: logging.Logger,
+    primary_key: str = "order_id",
 ) -> Path:
     src = silver_dir / "orders" / f"date={date_str}" / "data.parquet"
     part_dir = gold_dir / "fact_orders" / f"date={date_str}"
@@ -213,7 +216,7 @@ def build_fact_orders(
         build_dim_date(gold_dir, logger)
 
     df = _strip_internal(pd.read_parquet(src))
-    df = df.drop_duplicates(subset=["order_id"], keep="last")
+    df = df.drop_duplicates(subset=[primary_key], keep="last")
 
     df["order_date"] = pd.to_datetime(df["order_date"])
     df["quantity"] = df["quantity"].astype(int)
@@ -221,7 +224,7 @@ def build_fact_orders(
     df["total_amount"] = df["quantity"] * df["unit_price"]
     df["date_key"] = df["order_date"].dt.strftime("%Y%m%d").astype(int)
     df["_load_date"] = date_str
-    df = df.sort_values("order_id", kind="stable").reset_index(drop=True)
+    df = df.sort_values(primary_key, kind="stable").reset_index(drop=True)
 
     # Delete this date's partition, then write fresh -> no duplicates on re-run.
     if part_dir.exists():
