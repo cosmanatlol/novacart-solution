@@ -162,6 +162,23 @@ Generates the sample source datasets in `data/landing/`:
 python scripts/generate_sample_data.py
 ```
 
+### `generate_synthetic_data.py`
+Generates customizable synthetic datasets in `data/landing/` with configurable record volumes and an option to introduce a percentage of malformed/invalid records to test pipeline validation and quarantine mechanisms:
+
+```bash
+# Generate data with default 10% malformed records
+python scripts/generate_synthetic_data.py
+
+# Generate data with 20% malformed records and a fixed seed
+python scripts/generate_synthetic_data.py --malformed-pct 0.2 --seed 42
+
+# Generate 100% clean synthetic data
+python scripts/generate_synthetic_data.py --clean
+
+# Custom volume generation
+python scripts/generate_synthetic_data.py --malformed-pct 0.15 --num-customers 50 --num-products 20 --orders-per-day 50
+```
+
 ### `run_everything.py`
 Cross-platform end-to-end runner. Works on macOS, Linux, and Windows. Runs three
 steps in order and exits on the first failure:
