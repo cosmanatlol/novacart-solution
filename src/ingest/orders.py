@@ -37,11 +37,10 @@ def ingest_orders(
     except Exception as UnicodeDecodeError :
         df = pd.read_csv(src, encoding = 'latin-1')
 
-
-    log_event(logger, "INFO", "orders_ingested", date=date_str, rows=len(df))
-
     check_schema(list(df.columns), SOURCE_SCHEMAS["orders"]["model"], "orders", logger)
 
+    log_event(logger, "INFO", "orders_ingested", date=date_str, rows=len(df))
+    
     # Add Bronze metadata
     df["_row_hash"] = df.apply(_row_hash, axis=1)
     df["_source_file"] = src.name
