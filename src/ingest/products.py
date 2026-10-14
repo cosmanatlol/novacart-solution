@@ -58,6 +58,8 @@ def ingest_products(
     df = df.astype("string")
 
     log_event(logger, "INFO", "products_ingested", rows=len(df), since=watermark)
+    check_schema(list(df.columns), SOURCE_SCHEMAS["products"]["model"], "products", logger)
+
 
     if df.empty:
         # Do not touch existing Bronze data: nothing is written, deleted or overwritten.

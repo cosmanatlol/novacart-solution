@@ -3,8 +3,6 @@ from __future__ import annotations
 from datetime import date
 from typing import Optional
 from pydantic import BaseModel, field_validator, ConfigDict
-import json
-# import ast
 
 
 class OrderRow(BaseModel):
@@ -46,7 +44,7 @@ class CustomerRow(BaseModel):
     first_name: str
     last_name: str
     email: str
-    address: dict #address: str
+    address: dict
     signup_date: date
     tier: Optional[str] = "standard"
 

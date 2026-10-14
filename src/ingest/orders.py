@@ -33,15 +33,14 @@ def ingest_orders(
     if not src.exists():
         raise IngestionError(f"orders file not found: {src}")
     try:
-        df = pd.read_csv(src, encoding = 'utf-8',)
-    except Exception as UnicodeDecodeError :
-        df = pd.read_csv(src, encoding = 'latin-1')
-
+        df = pd.read_csv(src, encoding = 'utf-8', dtype=str)
+    except UnicodeDecodeError :
+        df = pd.read_csv(src, encoding = 'latin-1', dtype=str)
 
     log_event(logger, "INFO", "orders_ingested", date=date_str, rows=len(df))
 
     check_schema(list(df.columns), SOURCE_SCHEMAS["orders"]["model"], "orders", logger)
-
+    
     # Add Bronze metadata
     df["_row_hash"] = df.apply(_row_hash, axis=1)
     df["_source_file"] = src.name

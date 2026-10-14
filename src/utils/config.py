@@ -41,3 +41,5 @@ class Config:
     def silver_cfg(self) -> dict:          return self._raw.get("silver", {})
     @property
     def gold_cfg(self) -> dict:            return self._raw.get("gold", {})
+    @property
+    def sources_cfg(self) -> dict:         return self._raw.get("sources", {})
