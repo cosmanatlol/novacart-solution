@@ -226,3 +226,25 @@ def test_point_in_time_join_gives_city_at_order_time(dirs):
     m = orders.merge(dim, on="customer_id")
     m = m[(m.order_date >= m._eff_start) & (m.order_date < m._eff_end)]
     assert list(m.sort_values("order_date").city) == ["Pune", "Mumbai"]
+
+
+# ── Primary keys come from config (teammate's sources_cfg), not from the code ──
+def test_custom_primary_keys_are_honoured(dirs):
+    silver, gold = dirs
+    prod = _products("100").rename(columns={"product_id": "sku"})
+    _w(silver / "products" / "data.parquet", pd.concat([prod, prod.assign(unit_cost="120")]))
+    out = pd.read_parquet(build_dim_product(silver, gold, LOG, primary_key="sku"))
+    assert len(out) == 1 and out.iloc[0].unit_cost == "120"
+
+    cust = _customers().rename(columns={"customer_id": "cust_no"})
+    _w(silver / "customers" / "data.parquet", cust)
+    build_dim_customer(silver, gold, SCD2, LOG, as_of="2025-01-01", primary_key="cust_no")
+    _w(silver / "customers" / "data.parquet", cust.assign(city="Mumbai"))
+    dim = pd.read_parquet(build_dim_customer(silver, gold, SCD2, LOG, as_of="2025-06-01",
+                                             primary_key="cust_no"))
+    assert len(dim) == 4 and int(dim._current.sum()) == 2          # both customers moved
+
+    ords = _orders().rename(columns={"order_id": "ord_ref"})
+    _w(silver / "orders" / "date=2025-11-07" / "data.parquet", pd.concat([ords, ords]))
+    fact = pd.read_parquet(build_fact_orders("2025-11-07", silver, gold, LOG, primary_key="ord_ref"))
+    assert len(fact) == 3
