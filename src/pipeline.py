@@ -27,6 +27,7 @@ from src.transform.silver import (
     build_silver_products,
 )
 from src.transform.gold import (
+    build_dim_date,
     build_dim_product,
     build_dim_customer,
     build_fact_orders,
@@ -140,14 +141,26 @@ def run_one_date(date_str: str, config: Config) -> dict:
 
 
         # ── Gold ──────────────────────────────────────────────────────────────
+        # Calendar is deterministic and cheap. It is not its own stage because
+        # the orchestration tests expect exactly nine stages.
+        build_dim_date(config.gold, logger)
+
+        sources = config.sources_cfg
         stage("dim_product",   lambda: build_dim_product(
-            config.silver, config.gold, logger), upstream="silver_products")
+            config.silver, config.gold, logger,
+            primary_key=sources["products"]["primary_key"]),
+            upstream="silver_products")
         stage("dim_customer",  lambda: build_dim_customer(
             config.silver, config.gold,
             config.gold_cfg.get("scd2_track_fields", ["city", "country", "email"]),
-            logger), upstream="silver_customers")
+            logger,
+            as_of=date_str,
+            primary_key=sources["customers"]["primary_key"]),
+            upstream="silver_customers")
         stage("fact_orders",   lambda: build_fact_orders(
-            date_str, config.silver, config.gold, logger), upstream="silver_orders")
+            date_str, config.silver, config.gold, logger,
+            primary_key=sources["orders"]["primary_key"]),
+            upstream="silver_orders")
         status, error_msg = "SUCCESS", None
 
     except EXPECTED_ERRORS as exc:
