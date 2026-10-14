@@ -11,3 +11,7 @@ class SchemaError(PipelineError):
 
 class IngestionError(PipelineError):
     """Raised when a source file cannot be read."""
+
+
+class StateError(PipelineError):
+    """Raised when a state file (e.g. watermarks.json) is corrupt or unreadable."""

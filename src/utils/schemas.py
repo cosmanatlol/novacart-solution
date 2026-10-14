@@ -4,7 +4,7 @@ from datetime import date
 from typing import Optional
 from pydantic import BaseModel, field_validator, ConfigDict
 import json
-import ast
+# import ast
 
 
 class OrderRow(BaseModel):
@@ -46,7 +46,7 @@ class CustomerRow(BaseModel):
     first_name: str
     last_name: str
     email: str
-    address: str
+    address: dict #address: str
     signup_date: date
     tier: Optional[str] = "standard"
 
@@ -59,12 +59,11 @@ class CustomerRow(BaseModel):
     
     @field_validator("address")
     @classmethod
-    def address_format(cls, v: str) -> str:
-        nest = ast.literal_eval(v)
-        if not nest["city"]:
-            raise ValueError(f"no city founds")
-        if not nest["country"]:
-            raise ValueError(f"no country found")
+    def address_format(cls, v: dict) -> dict:   # str → dict
+        if not v.get("city"):                   # drop ast.literal_eval, use .get()
+            raise ValueError("no city found")
+        if not v.get("country"):
+            raise ValueError("no country found")
         return v
 
 
@@ -82,3 +81,10 @@ class ProductRow(BaseModel):
         if v < 0:
             raise ValueError(f"unit_cost must be >= 0, got {v}")
         return v
+
+
+SOURCE_SCHEMAS: dict[str, dict] = {
+    "orders":    {"model": OrderRow,    "primary_key": "order_id"},
+    "customers": {"model": CustomerRow, "primary_key": "customer_id"},
+    "products":  {"model": ProductRow,  "primary_key": "product_id"},
+}

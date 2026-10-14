@@ -11,17 +11,13 @@ import pandas as pd
 from src.utils.exceptions import IngestionError
 from src.utils.logging_setup import log_event
 from src.transform.schema_check import check_schema
-
-EXPECTED_COLUMNS = [
-    "customer_id", "first_name", "last_name", "email",
-    "address", "signup_date", "tier",
-]
+from src.utils.schemas import SOURCE_SCHEMAS
 
 
 def _row_hash(row: pd.Series) -> str:
     """SHA-256 of the source business columns (stable across key order and nested values)."""
     payload = json.dumps(
-        [row[c] for c in EXPECTED_COLUMNS], sort_keys=True, default=str, separators=(",", ":")
+        [row[c] for c in SOURCE_SCHEMAS["customers"]["model"].model_fields if c in row.index], sort_keys=True, default=str, separators=(",", ":")
     )
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
@@ -39,7 +35,7 @@ def ingest_customers(
     df = pd.read_json(src, dtype = str)
     log_event(logger, "INFO", "customers_ingested", rows=len(df))
 
-    check_schema(list(df.columns), EXPECTED_COLUMNS, "customers", logger)
+    check_schema(list(df.columns), SOURCE_SCHEMAS["customers"]["model"], "customers", logger)
 
     df["_row_hash"] = df.apply(_row_hash, axis=1)
     df["_source_file"] = src.name

@@ -1,3 +1,21 @@
 .DS_Store
 .claude/
 Technical Docs/
+
+# Pipeline-generated output (see scripts/cleanup.py)
+data/bronze/
+data/silver/
+data/gold/
+data/quarantine/
+state/
+logs/
+
+# Virtual environment
+.venv/
+# Python cache
+**/__pycache__/
+*.pyc
+*.pyo
+
+# Database files
+*.db
