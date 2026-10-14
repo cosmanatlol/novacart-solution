@@ -111,16 +111,33 @@ def run_one_date(date_str: str, config: Config) -> dict:
         stage("ingest_products",  lambda: ingest_products(
             config.landing_products_db, config.bronze, state, logger))
 
+
         # ── Silver ────────────────────────────────────────────────────────────
-        stage("silver_orders",    lambda: build_silver_orders(
-            date_str, config.bronze, config.silver, config.quarantine, logger),
-            upstream="ingest_orders", quarantine_source="orders")
+        stage("silver_orders", lambda: build_silver_orders(
+            date_str,
+            config.bronze,
+            config.silver,
+            config.quarantine,
+            logger,
+            config=config,
+        ), upstream="ingest_orders", quarantine_source="orders")
+
         stage("silver_customers", lambda: build_silver_customers(
-            config.bronze, config.silver, config.quarantine, logger),
-            upstream="ingest_customers", quarantine_source="customers")
-        stage("silver_products",  lambda: build_silver_products(
-            config.bronze, config.silver, config.quarantine, logger),
-            upstream="ingest_products", quarantine_source="products")
+            config.bronze,
+            config.silver,
+            config.quarantine,
+            logger,
+            config=config,
+        ), upstream="ingest_customers", quarantine_source="customers")
+
+        stage("silver_products", lambda: build_silver_products(
+            config.bronze,
+            config.silver,
+            config.quarantine,
+            logger,
+            config=config,
+        ), upstream="ingest_products", quarantine_source="products")
+
 
         # ── Gold ──────────────────────────────────────────────────────────────
         stage("dim_product",   lambda: build_dim_product(
