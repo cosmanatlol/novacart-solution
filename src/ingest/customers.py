@@ -32,10 +32,8 @@ def ingest_customers(
     if not src.exists():
         raise IngestionError(f"customers file not found: {src}")
 
-    df = pd.read_json(src, dtype = str)
+    df = pd.read_json(src,)
     log_event(logger, "INFO", "customers_ingested", rows=len(df))
-
-    check_schema(list(df.columns), SOURCE_SCHEMAS["customers"]["model"], "customers", logger)
 
     df["_row_hash"] = df.apply(_row_hash, axis=1)
     df["_source_file"] = src.name

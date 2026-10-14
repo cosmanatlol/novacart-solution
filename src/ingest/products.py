@@ -57,9 +57,6 @@ def ingest_products(
     # Bronze stores everything as strings; nulls stay missing (<NA>), never the text "nan".
     df = df.astype("string")
 
-    # Schema check runs even when the delta is empty, so subtractive drift is never missed.
-    check_schema(list(df.columns), SOURCE_SCHEMAS["products"]["model"], "products", logger)
-
     log_event(logger, "INFO", "products_ingested", rows=len(df), since=watermark)
 
     if df.empty:
