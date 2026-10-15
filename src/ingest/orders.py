@@ -5,6 +5,7 @@ import json
 import hashlib
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Optional
 
 import pandas as pd
 
@@ -27,6 +28,7 @@ def ingest_orders(
     landing_dir: Path,
     bronze_dir: Path,
     logger: logging.Logger,
+    email_cfg: Optional["EmailAlertConfig"] = None,
 ) -> Path:
     """Read orders_YYYY-MM-DD.csv and write to Bronze layer. Returns output path."""
     src = landing_dir / f"orders_{date_str}.csv"
@@ -39,7 +41,7 @@ def ingest_orders(
 
     log_event(logger, "INFO", "orders_ingested", date=date_str, rows=len(df))
 
-    check_schema(list(df.columns), SOURCE_SCHEMAS["orders"]["model"], "orders", logger)
+    check_schema(list(df.columns), SOURCE_SCHEMAS["orders"]["model"], "orders", logger, email_cfg)
     
     # Add Bronze metadata
     df["_row_hash"] = df.apply(_row_hash, axis=1)

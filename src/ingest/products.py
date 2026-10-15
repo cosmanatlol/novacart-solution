@@ -6,6 +6,7 @@ import json
 import hashlib
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Optional
 
 import pandas as pd
 
@@ -29,6 +30,7 @@ def ingest_products(
     bronze_dir: Path,
     state: StateManager,
     logger: logging.Logger,
+    email_cfg: Optional["EmailAlertConfig"] = None,
 ) -> Path:
     """
     Incrementally load only rows newer than the stored watermark.
@@ -58,7 +60,7 @@ def ingest_products(
     df = df.astype("string")
 
     log_event(logger, "INFO", "products_ingested", rows=len(df), since=watermark)
-    check_schema(list(df.columns), SOURCE_SCHEMAS["products"]["model"], "products", logger)
+    check_schema(list(df.columns), SOURCE_SCHEMAS["products"]["model"], "products", logger, email_cfg)
 
 
     if df.empty:
