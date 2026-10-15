@@ -223,6 +223,30 @@ python -m src.pipeline --date 2025-11-10 --backfill 3
 
 Pipeline behavior and paths are configured in `config/pipeline.yaml`.
 
+## Email Alerts
+
+When a required column is missing from a source, the pipeline emails all configured recipients with details about the error.
+
+Configure the `email_alerts` block in `config/pipeline.yaml`:
+
+```yaml
+email_alerts:
+  smtp_server: smtp.gmail.com
+  smtp_port: 587
+  sender_email: you@example.com
+  sender_password: ""           # leave blank — set EMAIL_ALERT_PASSWORD instead
+  recipients:
+    - oncall@example.com
+```
+
+Set the password as an environment variable before running the pipeline:
+
+```bash
+export EMAIL_ALERT_PASSWORD="your-smtp-password"
+```
+
+> **Gmail users:** use an [App Password](https://myaccount.google.com/apppasswords) instead of your normal login password.
+
 ## Folder overview
 
 | Path                 | Purpose |
