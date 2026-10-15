@@ -105,12 +105,13 @@ def run_one_date(date_str: str, config: Config) -> dict:
     status, error_msg = "FAIL", "pipeline stopped by an unexpected error"
     try:
         # ── Bronze ────────────────────────────────────────────────────────────
+        _email_cfg = config.email_cfg
         stage("ingest_orders",    lambda: ingest_orders(
-            date_str, config.landing_orders, config.bronze, logger))
+            date_str, config.landing_orders, config.bronze, logger, _email_cfg))
         stage("ingest_customers", lambda: ingest_customers(
-            config.landing_customers, config.bronze, logger))
+            config.landing_customers, config.bronze, logger, _email_cfg))
         stage("ingest_products",  lambda: ingest_products(
-            config.landing_products_db, config.bronze, state, logger))
+            config.landing_products_db, config.bronze, state, logger, _email_cfg))
 
 
         # ── Silver ────────────────────────────────────────────────────────────

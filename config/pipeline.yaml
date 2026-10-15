@@ -31,3 +31,12 @@ gold:
     - city
     - country
     - email
+
+email_alerts:
+  smtp_server: smtp.gmail.com
+  smtp_port: 587
+  sender_email: sender_email@gmail.com
+  # Store the real password in an environment variable: EMAIL_ALERT_PASSWORD
+  sender_password: ""
+  recipients:
+    - recipient_email@gmail.com

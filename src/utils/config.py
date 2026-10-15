@@ -1,9 +1,30 @@
 """Config loader — reads pipeline.yaml and exposes typed paths."""
 from __future__ import annotations
+from dataclasses import dataclass, field
 from pathlib import Path
+from typing import List
 import yaml
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+
+
+@dataclass
+class EmailAlertConfig:
+    smtp_server: str = "smtp.gmail.com"
+    smtp_port: int = 587
+    sender_email: str = ""
+    sender_password: str = ""
+    recipients: List[str] = field(default_factory=list)
+
+    @classmethod
+    def from_dict(cls, raw: dict) -> "EmailAlertConfig":
+        return cls(
+            smtp_server=raw.get("smtp_server", "smtp.gmail.com"),
+            smtp_port=int(raw.get("smtp_port", 587)),
+            sender_email=raw.get("sender_email", ""),
+            sender_password=raw.get("sender_password", ""),
+            recipients=raw.get("recipients", []),
+        )
 
 
 class Config:
@@ -45,3 +66,6 @@ class Config:
     def gold_cfg(self) -> dict:            return self._raw.get("gold", {})
     @property
     def sources_cfg(self) -> dict:         return self._raw.get("sources", {})
+    @property
+    def email_cfg(self) -> EmailAlertConfig:
+        return EmailAlertConfig.from_dict(self._raw.get("email_alerts", {}))

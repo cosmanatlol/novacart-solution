@@ -1,9 +1,11 @@
 """Schema drift detection: additive drift warns, subtractive drift raises."""
 from __future__ import annotations
 import logging
+from typing import Optional
 from pydantic import BaseModel
 from src.utils.exceptions import SchemaError
 from src.utils.logging_setup import log_event
+from src.utils.email_alert import send_schema_alert
 
 
 def check_schema(
@@ -11,6 +13,7 @@ def check_schema(
     expected_columns: list[str] | type[BaseModel],
     source_name: str,
     logger: logging.Logger,
+    email_cfg: Optional["EmailAlertConfig"] = None,
 ) -> None:
     """
     Compare actual DataFrame columns against an expected schema contract.
@@ -24,7 +27,7 @@ def check_schema(
 
     Drift Handling:
     - Extra columns (additive drift)      → Logs structured WARNING event, execution continues.
-    - Missing columns (subtractive drift)  → Raises SchemaError.
+    - Missing columns (subtractive drift)  → Sends email alert (if configured), then raises SchemaError.
 
     Args:
         df_columns: Column names present in the incoming DataFrame.
@@ -33,6 +36,8 @@ def check_schema(
         source_name: Name of the data source (e.g. "orders", "customers", "products")
             used for error reporting and log context.
         logger: Logger instance used to record structured drift warnings.
+        email_cfg: Optional email alert config. When provided, an alert email is sent
+            to configured recipients before raising SchemaError.
 
     Raises:
         SchemaError: If any required columns are missing from df_columns.
@@ -59,6 +64,9 @@ def check_schema(
         log_event(logger, "WARNING", "schema_drift_extra_columns", source=source_name, columns=sorted(added))
 
     if missing:
+        sorted_missing = sorted(missing)
+        if email_cfg is not None and email_cfg.recipients:
+            send_schema_alert(email_cfg, source_name, sorted_missing, logger)
         raise SchemaError(
-            f"[schema_drift] {source_name}: required columns missing {sorted(missing)}"
+            f"[schema_drift] {source_name}: required columns missing {sorted_missing}"
         )
