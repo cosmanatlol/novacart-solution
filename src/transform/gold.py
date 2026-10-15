@@ -106,15 +106,23 @@ def build_dim_product(
         return out_path
 
     incoming = _strip_internal(incoming)
-    incoming = incoming.drop_duplicates(subset=[primary_key], keep="last")
+
+    def _latest_per_key(frame: pd.DataFrame) -> pd.DataFrame:
+        """One row per product: the newest by updated_at wins; on a tie, the later row wins."""
+        if "updated_at" in frame.columns:
+            frame = frame.sort_values("updated_at", kind="stable", na_position="first")
+        return frame.drop_duplicates(subset=[primary_key], keep="last")
+
+    incoming = _latest_per_key(incoming)
 
     # Products load incrementally, so Silver only holds changed rows.
-    # SCD1 = upsert: new version replaces the old one on the same primary key,
-    # every other product already in Gold is kept.
+    # SCD1 = upsert: the new version replaces the old one on the same primary key
+    # (price/cost and every other column are overwritten, no history is kept) and
+    # every other product already in Gold stays. A stale record with an OLDER
+    # updated_at than what Gold already has never overwrites the newer one.
     if out_path.exists():
         existing = pd.read_parquet(out_path)
-        merged = pd.concat([existing, incoming], ignore_index=True)
-        merged = merged.drop_duplicates(subset=[primary_key], keep="last")
+        merged = _latest_per_key(pd.concat([existing, incoming], ignore_index=True))
     else:
         merged = incoming
 
@@ -144,67 +152,78 @@ def build_dim_customer(
         log_event(logger, "INFO", "dim_customer_skipped_no_data")
         return out_path
 
-    incoming = _strip_internal(pd.read_parquet(src))
+    # Silver order = oldest -> newest. Silver may hold SEVERAL versions of one
+    # customer_id (it only drops identical records), so we keep them all here.
+    incoming = _strip_internal(pd.read_parquet(src)).reset_index(drop=True)
     if incoming.empty:
         log_event(logger, "INFO", "dim_customer_skipped_no_data")
         return out_path
-    incoming = incoming.drop_duplicates(subset=[primary_key], keep="last")
 
     fields = [f for f in (scd2_fields or DEFAULT_SCD2_FIELDS) if f in incoming.columns]
     eff = _as_of(as_of)
     incoming["_row_hash"] = incoming.apply(lambda r: _row_hash(r, fields), axis=1)
+    latest = incoming.drop_duplicates(subset=[primary_key], keep="last").set_index(primary_key)
 
-    def _open(frame: pd.DataFrame) -> pd.DataFrame:
-        frame = frame.copy()
-        frame["_eff_start"] = eff
-        frame["_eff_end"] = _HIGH_DATE
-        frame["_current"] = True
-        return frame
+    if out_path.exists():
+        existing = pd.read_parquet(out_path)
+    else:
+        existing = incoming.iloc[0:0].assign(
+            _eff_start=pd.Series(dtype="object"), _eff_end=pd.Series(dtype="object"),
+            _current=pd.Series(dtype="bool"))
 
-    if not out_path.exists():
-        result = _open(incoming)
-        result.to_parquet(out_path, index=False)
-        log_event(logger, "INFO", "dim_customer_initial_load", rows=len(result))
+    # SCD2 only moves forward. The customer source is one snapshot (not one file per
+    # date), so replaying an OLDER date would apply today's data to the past and corrupt
+    # the history. Gold is already past that date, so there is nothing to do.
+    if not existing.empty and eff < existing["_eff_start"].max():
+        log_event(logger, "INFO", "dim_customer_skipped_historic_date", date=eff,
+                  latest=existing["_eff_start"].max())
         return out_path
 
-    existing = pd.read_parquet(out_path)
+    # Re-running the LATEST date must give the same result as the first run, so first
+    # undo that date: drop rows it opened, re-open rows it closed.
+    existing = existing[existing["_eff_start"] != eff].copy()
+    reopen = existing["_eff_end"] == eff
+    existing.loc[reopen, "_eff_end"] = _HIGH_DATE
+    existing.loc[reopen, "_current"] = True
+
+    # Walk each customer's versions in order: a version is a real change only if its
+    # tracked fields differ from the version before it (or from the current Gold row).
     current = existing[existing["_current"]].set_index(primary_key)["_row_hash"]
+    prev = incoming.groupby(primary_key)["_row_hash"].shift()
+    prev = prev.where(prev.notna(), incoming[primary_key].map(current))
+    changes = incoming[incoming["_row_hash"] != prev].copy()   # NaN prev = new customer
+    changed_ids = changes[primary_key].unique()
+    is_new = ~pd.Series(changed_ids).isin(current.index)
 
-    cur_hash = incoming[primary_key].map(current)          # NaN when customer is new
-    is_new = cur_hash.isna()
-    is_changed = ~is_new & (cur_hash != incoming["_row_hash"])
-    is_same = ~is_new & ~is_changed
+    # The newest version of each customer becomes the current row. Older versions that
+    # arrived in the same batch are kept as superseded rows (_current=False); they were
+    # replaced on the same effective date, so their validity window is empty.
+    is_last = ~changes.duplicated(subset=[primary_key], keep="last")
+    changes["_eff_start"] = eff
+    changes["_eff_end"] = [_HIGH_DATE if last else eff for last in is_last]
+    changes["_current"] = is_last.to_numpy()
 
-    changed_ids = incoming.loc[is_changed, primary_key]
-    to_insert = _open(incoming[is_new | is_changed])
-
-    is_cur = existing["_current"]
-    # A tracked field changed again on the SAME effective date (e.g. a corrected
-    # re-run): replace that row instead of leaving a zero-length history row.
-    same_day = is_cur & existing[primary_key].isin(changed_ids) & (existing["_eff_start"] == eff)
-    existing = existing[~same_day].copy()
-    is_cur = existing["_current"]
-
-    # Normal SCD2: close the old current row for every changed customer.
-    close_mask = is_cur & existing[primary_key].isin(changed_ids)
+    # Normal SCD2: close the old current row of every customer that changed.
+    close_mask = existing["_current"] & existing[primary_key].isin(changed_ids)
     existing.loc[close_mask, "_eff_end"] = eff
     existing.loc[close_mask, "_current"] = False
 
-    # Untracked attributes (e.g. signup_date) of unchanged customers: refresh the
-    # current row in place so it never goes stale (history is only for tracked fields).
-    untracked = [c for c in incoming.columns
-                 if c not in fields and c not in (primary_key, "_row_hash") and c in existing.columns]
-    if untracked:
-        keep = existing["_current"] & existing[primary_key].isin(incoming.loc[is_same, primary_key])
-        latest = incoming.set_index(primary_key)
-        for c in untracked:
-            existing.loc[keep, c] = existing.loc[keep, primary_key].map(latest[c])
+    result = pd.concat([existing, changes], ignore_index=True)
 
-    result = pd.concat([existing, to_insert], ignore_index=True)
-    result = result.sort_values([primary_key, "_eff_start"], kind="stable").reset_index(drop=True)
+    # Untracked attributes (e.g. signup_date, tier): keep the current row up to date
+    # in place (history is only kept for the tracked fields).
+    untracked = [c for c in incoming.columns
+                 if c not in fields and c not in (primary_key, "_row_hash")]
+    keep = result["_current"] & result[primary_key].isin(latest.index)
+    for c in untracked:
+        if c in result.columns:
+            result.loc[keep, c] = result.loc[keep, primary_key].map(latest[c])
+
+    result = result.sort_values([primary_key, "_eff_start", "_current"],
+                                kind="stable").reset_index(drop=True)
     result.to_parquet(out_path, index=False)
     log_event(logger, "INFO", "dim_customer_written", rows=len(result),
-              new=int(is_new.sum()), changed=int(is_changed.sum()))
+              new=int(is_new.sum()), changed=int(len(changed_ids) - is_new.sum()))
     return out_path
 
 
