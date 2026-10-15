@@ -145,21 +145,16 @@ def run_one_date(date_str: str, config: Config) -> dict:
         # the orchestration tests expect exactly nine stages.
         build_dim_date(config.gold, logger)
 
-        sources = config.sources_cfg
         stage("dim_product",   lambda: build_dim_product(
-            config.silver, config.gold, logger,
-            primary_key=sources["products"]["primary_key"]),
+            config.silver, config.gold, logger, config=config),
             upstream="silver_products")
         stage("dim_customer",  lambda: build_dim_customer(
             config.silver, config.gold,
             config.gold_cfg.get("scd2_track_fields", ["city", "country", "email"]),
-            logger,
-            as_of=date_str,
-            primary_key=sources["customers"]["primary_key"]),
+            logger, as_of=date_str, config=config),
             upstream="silver_customers")
         stage("fact_orders",   lambda: build_fact_orders(
-            date_str, config.silver, config.gold, logger,
-            primary_key=sources["orders"]["primary_key"]),
+            date_str, config.silver, config.gold, logger, config=config),
             upstream="silver_orders")
         status, error_msg = "SUCCESS", None
 

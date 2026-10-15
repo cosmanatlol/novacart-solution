@@ -20,11 +20,16 @@ from pathlib import Path
 
 import pandas as pd
 
+from src.utils.config import Config
 from src.utils.logging_setup import log_event
 
 _HIGH_DATE = "9999-12-31"
 DIM_DATE_START = "2024-01-01"
 DIM_DATE_END = "2026-12-31"
+
+# Used ONLY when a caller does not pass `config` (e.g. a quick standalone call).
+# The pipeline always passes config, so the real keys come from pipeline.yaml.
+_FALLBACK_KEYS = {"products": "product_id", "customers": "customer_id", "orders": "order_id"}
 
 DEFAULT_SCD2_FIELDS = ["first_name", "last_name", "email", "city", "country", "tier"]
 
@@ -37,6 +42,13 @@ def _strip_internal(df: pd.DataFrame) -> pd.DataFrame:
 def _row_hash(row: pd.Series, fields: list[str]) -> str:
     val = "|".join(str(row.get(f, "")) for f in sorted(fields))
     return hashlib.md5(val.encode()).hexdigest()
+
+
+def _primary_key(config: Config | None, source: str) -> str:
+    """Primary key of a source, read from pipeline.yaml (`sources:` section)."""
+    if config is None:
+        return _FALLBACK_KEYS[source]
+    return config.sources_cfg[source]["primary_key"]
 
 
 def _as_of(as_of: str | None) -> str:
@@ -78,8 +90,9 @@ def build_dim_product(
     silver_dir: Path,
     gold_dir: Path,
     logger: logging.Logger,
-    primary_key: str = "product_id",
+    config: Config | None = None,
 ) -> Path:
+    primary_key = _primary_key(config, "products")
     src = silver_dir / "products" / "data.parquet"
     gold_dir.mkdir(parents=True, exist_ok=True)
     out_path = gold_dir / "dim_product.parquet"
@@ -120,8 +133,9 @@ def build_dim_customer(
     scd2_fields: list[str] | None,
     logger: logging.Logger,
     as_of: str | None = None,
-    primary_key: str = "customer_id",
+    config: Config | None = None,
 ) -> Path:
+    primary_key = _primary_key(config, "customers")
     src = silver_dir / "customers" / "data.parquet"
     gold_dir.mkdir(parents=True, exist_ok=True)
     out_path = gold_dir / "dim_customer.parquet"
@@ -201,8 +215,9 @@ def build_fact_orders(
     silver_dir: Path,
     gold_dir: Path,
     logger: logging.Logger,
-    primary_key: str = "order_id",
+    config: Config | None = None,
 ) -> Path:
+    primary_key = _primary_key(config, "orders")
     src = silver_dir / "orders" / f"date={date_str}" / "data.parquet"
     part_dir = gold_dir / "fact_orders" / f"date={date_str}"
     out_path = part_dir / "data.parquet"
