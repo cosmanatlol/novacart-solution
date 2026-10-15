@@ -31,6 +31,19 @@ def tmp_project(tmp_path: Path) -> Path:
             "logs":       "logs",
             "state":      "state",
         },
+
+        "sources": {
+            "orders": {
+                "primary_key": "order_id",
+            },
+            "customers": {
+                "primary_key": "customer_id",
+            },
+            "products": {
+                "primary_key": "product_id",
+                "watermark_field": "updated_at",
+            },
+        },
         "silver": {"min_order_amount": 0.0, "max_order_amount": 100000.0},
         "gold":   {"scd2_track_fields": ["city", "country", "email"]},
     }

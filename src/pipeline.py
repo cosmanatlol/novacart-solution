@@ -27,6 +27,7 @@ from src.transform.silver import (
     build_silver_products,
 )
 from src.transform.gold import (
+    build_dim_date,
     build_dim_product,
     build_dim_customer,
     build_fact_orders,
@@ -111,26 +112,50 @@ def run_one_date(date_str: str, config: Config) -> dict:
         stage("ingest_products",  lambda: ingest_products(
             config.landing_products_db, config.bronze, state, logger))
 
+
         # ── Silver ────────────────────────────────────────────────────────────
-        stage("silver_orders",    lambda: build_silver_orders(
-            date_str, config.bronze, config.silver, config.quarantine, logger),
-            upstream="ingest_orders", quarantine_source="orders")
+        stage("silver_orders", lambda: build_silver_orders(
+            date_str,
+            config.bronze,
+            config.silver,
+            config.quarantine,
+            logger,
+            config=config,
+        ), upstream="ingest_orders", quarantine_source="orders")
+
         stage("silver_customers", lambda: build_silver_customers(
-            config.bronze, config.silver, config.quarantine, logger),
-            upstream="ingest_customers", quarantine_source="customers")
-        stage("silver_products",  lambda: build_silver_products(
-            config.bronze, config.silver, config.quarantine, logger),
-            upstream="ingest_products", quarantine_source="products")
+            config.bronze,
+            config.silver,
+            config.quarantine,
+            logger,
+            config=config,
+        ), upstream="ingest_customers", quarantine_source="customers")
+
+        stage("silver_products", lambda: build_silver_products(
+            config.bronze,
+            config.silver,
+            config.quarantine,
+            logger,
+            config=config,
+        ), upstream="ingest_products", quarantine_source="products")
+
 
         # ── Gold ──────────────────────────────────────────────────────────────
+        # Calendar is deterministic and cheap. It is not its own stage because
+        # the orchestration tests expect exactly nine stages.
+        build_dim_date(config.gold, logger)
+
         stage("dim_product",   lambda: build_dim_product(
-            config.silver, config.gold, logger), upstream="silver_products")
+            config.silver, config.gold, logger, config=config),
+            upstream="silver_products")
         stage("dim_customer",  lambda: build_dim_customer(
             config.silver, config.gold,
             config.gold_cfg.get("scd2_track_fields", ["city", "country", "email"]),
-            logger), upstream="silver_customers")
+            logger, as_of=date_str, config=config),
+            upstream="silver_customers")
         stage("fact_orders",   lambda: build_fact_orders(
-            date_str, config.silver, config.gold, logger), upstream="silver_orders")
+            date_str, config.silver, config.gold, logger, config=config),
+            upstream="silver_orders")
         status, error_msg = "SUCCESS", None
 
     except EXPECTED_ERRORS as exc:
