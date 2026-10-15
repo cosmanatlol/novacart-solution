@@ -46,6 +46,8 @@ Once active, your prompt will show `(.venv)`.
 
 ### 3. Install the requirements
 
+scripts/run_everything.py repeats this install, so this step can be skipped if run_everything.py is run immediately. Note that an internet connection is needed to download dependencies.
+
 ```bash
 pip install --upgrade pip
 pip install -r requirements.txt
@@ -54,7 +56,7 @@ pip install -r requirements.txt
 ### 4. Run the project
 
 ```bash
-# Generate sample data, run the pipeline, and run the tests in one shot
+# Install dependencies (if step 3 was skipped), generate sample data, run the pipeline, and run the tests in one shot
 python scripts/run_everything.py
 ```
 
@@ -141,9 +143,6 @@ git add -A && git commit -m "Describe your change"
 git push -u origin your-name/feature
 ```
 
-> **Tip:** run `python scripts/cleanup.py` before committing so generated output
-> (`data/bronze`, `data/silver`, `data/gold`, `data/quarantine`, `state`, `logs`)
-> and your `.venv/` don't get pushed. Consider adding those paths to `.gitignore`.
 
 ## Scripts
 
@@ -180,11 +179,11 @@ python scripts/generate_synthetic_data.py --malformed-pct 0.15 --num-customers 5
 ```
 
 ### `run_everything.py`
-Cross-platform end-to-end runner. Works on macOS, Linux, and Windows. Runs three
-steps in order and exits on the first failure:
-1. Generate sample data (`generate_sample_data.py`).
-2. Run the pipeline for 2025-11-10 with a 3-day backfill (Nov 7–10).
-3. Run the test suite (`pytest`).
+Cross-platform end-to-end runner. Works on macOS, Linux, and Windows. Installs into the active interpreter. Runs four steps in order and exits on the first failure:
+1. Install requirements (`pip install -r requirements.txt`).
+2. Generate sample data (`generate_sample_data.py`).
+3. Run the pipeline for 2025-11-10 with a 3-day backfill (Nov 7–10).
+4. Run the test suite (`pytest`).
 
 ```bash
 python scripts/run_everything.py
@@ -209,6 +208,12 @@ Landing/source data (`data/landing/*`) is **not** touched — regenerate that wi
 
 ```bash
 python scripts/cleanup.py
+```
+
+### `view_parquet.py`
+Used for printing parquet contents to the terminal. Replace PARQUET_FILE_PATH with the parquet file's relative path.
+```bash
+python scripts/view_parquet.py PARQUET_FILE_PATH
 ```
 
 ## Running the pipeline directly

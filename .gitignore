@@ -23,3 +23,6 @@ logs/
 
 # Database files
 *.db
+
+# Bob working directory
+.bob/
