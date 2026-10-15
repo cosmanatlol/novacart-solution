@@ -55,13 +55,29 @@ def _validate_df(
 
     result = pd.DataFrame(good) if good else pd.DataFrame(columns=df.columns)
 
-    # Deduplicate on primary key — keep last occurrence
-    if primary_key in result.columns and not result.empty:
+    # Deduplication
+    if not result.empty:
         before = len(result)
-        result = (
-            result.sort_values("_ingested_at", kind="stable")
-            .drop_duplicates(subset=[primary_key], keep="last")
+
+        result = result.sort_values(
+            "_ingested_at", kind="stable"
         )
+
+        if source_name == "customers":
+            # Keep different versions of the same customer
+            # Remove only identical records
+            result = result.drop_duplicates(
+                subset=["_row_hash"],
+                keep="last"
+            )
+        else:
+            # Orders and Products:
+            # Keep the latest record per primary key
+            result = result.drop_duplicates(
+                subset=[primary_key],
+                keep="last"
+            )
+
         dupes = before - len(result)
 
         if dupes:
