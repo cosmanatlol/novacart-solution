@@ -7,7 +7,7 @@ landing area, promotes them through a medallion architecture
 ## Setup
 
 ### Prerequisites
-- **Python 3.10+** installed ([python.org/downloads](https://www.python.org/downloads/))
+- **Python 3.12+** installed ([python.org/downloads](https://www.python.org/downloads/))
 - **Git** installed ([git-scm.com/downloads](https://git-scm.com/downloads))
 
 Check both are available:
