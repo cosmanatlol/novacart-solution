@@ -5,9 +5,9 @@ Removes all pipeline-generated output so the next run starts from a clean
 slate. Run this after run_everything.py or any individual pipeline run.
 
 Deletes (equivalent to: rm -rf data/bronze data/silver data/gold
-data/quarantine state logs):
+data/quarantine state logs dashboard):
     data/bronze       data/silver       data/gold       data/quarantine
-    state             logs
+    state             logs              dashboard
 
 Source/landing data (data/landing/*) is NOT touched — regenerate that with
 scripts/generate_sample_data.py if needed.
@@ -28,6 +28,7 @@ TARGETS = [
     ROOT / "data" / "quarantine",
     ROOT / "state",
     ROOT / "logs",
+    ROOT / "dashboard",
 ]
 
 
