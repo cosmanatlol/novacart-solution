@@ -3,6 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 import yaml
 
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+
 
 class Config:
     def __init__(self, raw: dict, root: Path):
@@ -10,9 +12,9 @@ class Config:
         self.root = root
 
     @classmethod
-    def load(cls, path: str = "config/pipeline.yaml") -> "Config":
-        p = Path(path)
-        with p.open() as f:
+    def load(cls, path: str | Path | None = None) -> "Config":
+        p = Path(path) if path is not None else PROJECT_ROOT / "config" / "pipeline.yaml"
+        with p.open(encoding="utf-8") as f:
             raw = yaml.safe_load(f)
         return cls(raw, p.parent.parent)
 

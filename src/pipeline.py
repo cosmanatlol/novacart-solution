@@ -186,7 +186,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--date",     required=True, help="Processing date YYYY-MM-DD")
     parser.add_argument("--backfill", type=int, default=0,
                         help="Also process N days before --date")
-    parser.add_argument("--config",   default="config/pipeline.yaml")
+    parser.add_argument("--config",   default=None)
     args = parser.parse_args(argv)
 
     config = Config.load(args.config)
