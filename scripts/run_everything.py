@@ -1,5 +1,5 @@
 """
-Cross-platform end-to-end runner. Works on macOS, Linux, and Windows.
+Cross-platform end-to-end runner. Works on macOS, Linux, and Windows. Installs dependencies.
 Usage: python scripts/run_everything.py
 """
 from __future__ import annotations
@@ -23,14 +23,17 @@ def run(cmd: list[str], desc: str) -> None:
 def main():
     py = sys.executable
 
+    run([py, "-m", "pip", "install", "-r", "requirements.txt"],
+        "Step 1: Install requirements")
+
     run([py, "scripts/generate_sample_data.py"],
-        "Step 1: Generate sample data")
+        "Step 2: Generate sample data")
 
     run([py, "-m", "src.pipeline", "--date", "2025-11-10", "--backfill", "3"],
-        "Step 2: Run pipeline (Nov 7–10)")
+        "Step 3: Run pipeline (Nov 7–10)")
 
     run([py, "-m", "pytest", "-v"],
-        "Step 3: Run test suite")
+        "Step 4: Run test suite")
 
     print("\n✓ All steps complete. Check data/ for pipeline output.")
 

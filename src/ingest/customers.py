@@ -5,6 +5,7 @@ import json
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Optional
 
 import pandas as pd
 
@@ -26,6 +27,7 @@ def ingest_customers(
     landing_dir: Path,
     bronze_dir: Path,
     logger: logging.Logger,
+    email_cfg: Optional["EmailAlertConfig"] = None,
 ) -> Path:
     """Flatten nested JSON export and write to Bronze. Returns output path."""
     src = landing_dir / "customers.json"
@@ -34,9 +36,9 @@ def ingest_customers(
 
     df = pd.read_json(src,)
     log_event(logger, "INFO", "customers_ingested", rows=len(df))
-    
-    check_schema(list(df.columns), SOURCE_SCHEMAS["customers"]["model"], "customers", logger)
 
+    check_schema(list(df.columns), SOURCE_SCHEMAS["customers"]["model"], "customers", logger, email_cfg)
+    
     df["_row_hash"] = df.apply(_row_hash, axis=1)
     df["_source_file"] = src.name
     df["_ingested_at"] = datetime.now(timezone.utc).isoformat()
