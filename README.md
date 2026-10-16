@@ -179,11 +179,12 @@ python scripts/generate_synthetic_data.py --malformed-pct 0.15 --num-customers 5
 ```
 
 ### `run_everything.py`
-Cross-platform end-to-end runner. Works on macOS, Linux, and Windows. Installs into the active interpreter. Runs four steps in order and exits on the first failure:
+Cross-platform end-to-end runner. Works on macOS, Linux, and Windows. Installs into the active interpreter. Runs five steps in order and exits on the first failure:
 1. Install requirements (`pip install -r requirements.txt`).
 2. Generate sample data (`generate_sample_data.py`).
 3. Run the pipeline for 2025-11-10 with a 3-day backfill (Nov 7–10).
-4. Run the test suite (`pytest`).
+4. Build the dashboard (`build_dashboard.py`).
+5. Run the test suite (`pytest`).
 
 ```bash
 python scripts/run_everything.py
@@ -194,13 +195,13 @@ Cleanup run **after** `run_everything.py` or any individual pipeline run. Remove
 all pipeline-generated output so the next run starts from a clean slate:
 
 ```
-data/bronze  data/silver  data/gold  data/quarantine  state  logs
+data/bronze  data/silver  data/gold  data/quarantine  state  logs  dashboard
 ```
 
 It is the cross-platform equivalent of:
 
 ```bash
-rm -rf data/bronze data/silver data/gold data/quarantine state logs
+rm -rf data/bronze data/silver data/gold data/quarantine state logs dashboard
 ```
 
 Landing/source data (`data/landing/*`) is **not** touched — regenerate that with
@@ -208,6 +209,22 @@ Landing/source data (`data/landing/*`) is **not** touched — regenerate that wi
 
 ```bash
 python scripts/cleanup.py
+```
+
+### `build_dashboard.py`
+Builds a simple dashboard from existing pipeline output. It only **reads**
+`state/runs.jsonl`, `logs/pipeline.jsonl` and `data/quarantine/`, and writes into a
+new `dashboard/` folder:
+- `summary.md` / `summary.json` — run health, row flow per source (quarantined and
+  dedup-dropped rows, retention %), quarantine reasons, customer changes, and mean
+  stage duration.
+- `row_funnel.png`, `quarantine_rate.png`, `quarantine_reasons.png`,
+  `stage_duration.png`, `customer_changes.png` — the matching graphs.
+
+Run it after the pipeline. `run_everything.py` does this automatically.
+
+```bash
+python scripts/build_dashboard.py
 ```
 
 ### `view_parquet.py`
@@ -279,3 +296,4 @@ These are created by the scripts/pipeline at runtime and are removed by
 | `data/quarantine/`  | Quarantine  | Records that failed validation (bad quantity, invalid status, malformed email, etc.). |
 | `state/`            | Run state   | Per-run metadata and bookkeeping written by the orchestrator. |
 | `logs/`             | Logs        | Structured pipeline logs. |
+| `dashboard/`        | Reporting   | Statistics (`summary.md`, `summary.json`) and graph images built by `build_dashboard.py`. |

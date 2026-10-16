@@ -344,7 +344,7 @@ def generate_all_synthetic_data(
         rng=rng,
     )
     cust_path = customer_dir / "customers.json"
-    cust_path.write_text(json.dumps(customers, indent=2))
+    cust_path.write_text(json.dumps(customers, indent=2), encoding="utf-8")
 
     # 2. Products
     products, prod_stats = generate_products(
@@ -384,7 +384,7 @@ def generate_all_synthetic_data(
     written_order_files = []
     for date_str, rows in orders_by_date.items():
         path = orders_dir / f"orders_{date_str}.csv"
-        with path.open("w", newline="") as f:
+        with path.open("w", newline="", encoding="utf-8") as f:
             csv.writer(f).writerows(rows)
         written_order_files.append(path)
 
@@ -432,7 +432,7 @@ def parse_args() -> argparse.Namespace:
         help="Number of synthetic product records to generate. Default: 10",
     )
     parser.add_argument(
-        "--orders-per-day", "-p",
+        "--orders-per-day", "-o",
         type=int,
         default=25,
         help="Number of orders to generate per date file. Default: 25",

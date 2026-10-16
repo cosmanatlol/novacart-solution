@@ -32,10 +32,14 @@ def main():
     run([py, "-m", "src.pipeline", "--date", "2025-11-10", "--backfill", "3"],
         "Step 3: Run pipeline (Nov 7–10)")
 
-    run([py, "-m", "pytest", "-v"],
-        "Step 4: Run test suite")
+    run([py, "scripts/build_dashboard.py"],
+        "Step 4: Build dashboard")
 
-    print("\n✓ All steps complete. Check data/ for pipeline output.")
+    run([py, "-m", "pytest", "-v"],
+        "Step 5: Run test suite")
+
+    print("\n✓ All steps complete. Check data/ for pipeline output "
+          "and dashboard/ for statistics and graphs.")
 
 
 if __name__ == "__main__":
